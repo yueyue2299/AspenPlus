@@ -133,6 +133,18 @@ class Tool:
             # sleep for growing node
             time.sleep(1)
 
+    def comp_list(self):
+        comp_list = []
+        i = 0
+        comp_path = "\\Data\\Components\\Comp-Lists\\GLOBAL\\Input\\CID"
+        while True:
+            try:
+                comp_list.append(self.Aspen.Application.Tree.FindNode(f'{comp_path}\\#{i}').Value)
+                i += 1
+            except AttributeError:
+                break
+        return comp_list
+
 class FluidPropModel:
     def __init__(self, Aspen, Asp, tool):
         self.Aspen = Aspen
@@ -555,6 +567,46 @@ class Simulation:
     def set_stream_composition(self, stream_name, comp, value):
         self.strm().Elements(stream_name).Elements("Input").Elements("FLOW").Elements("MIXED").Elements(comp).Value = value
 
+    # read the input species' flow rate
+    def in_comp(self, stream_name, comp):
+        total_flow_rate = 0
+        flow = self.strm().Elements(stream_name).Elements("Input")
+        
+        for c in self.tool.comp_list():
+            c_flow_rate = flow.Elements("FLOW").Elements('MIXED').Elements(c).Value
+            if c_flow_rate != None:
+                total_flow_rate += c_flow_rate
+
+        comp_flow_rate = flow.Elements("FLOW").Elements('MIXED').Elements(comp).Value
+        
+        basis = flow.Elements("BASIS").Elements('MIXED').Value
+        ''' basis option:
+        MASS-FLOW
+        MOLE-FLOW
+        STDVOL-FLOW
+        MASS-FRAC
+        MOLE-FRAC
+        STDVOL-FRAC
+        MASS-CONC
+        MOLE-CONC
+        '''
+        flow_base = flow.Elements("FLOWBASE").Elements('MIXED').Value
+        '''flow base option:
+        MASS
+        MOLE
+        STDVOL
+        VOLUME
+        '''
+        flow_rate = 1
+        
+        if 'FLOW' in basis:
+            return comp_flow_rate
+        elif 'FRAC' in basis:
+            return comp_flow_rate / total_flow_rate
+        
+        return comp_flow_rate
+
+    # read the output species' flow rate
     def out_comp(self, stream_name, comp, 
                     option: Literal['MASSFLOW', 'MOLEFLOW', 'MASSFRAC', 'MOLEFRAC']):
         """
@@ -563,6 +615,7 @@ class Simulation:
         """
         return self.strm().Elements(stream_name).Elements("Output").Elements(option).Elements('MIXED').Elements(comp).Value
 
+    # read the output's property (temperature, pressure, mole flows, mass flows)
     def out_props(self, stream_name, option: Literal['TEM_OUT', 'PRES_OUT', 'MOLEFLMX', 'MASSFLMX']):
         """
         TEM_OUT: temperature, K
